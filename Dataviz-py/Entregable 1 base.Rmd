@@ -1,0 +1,135 @@
+---
+title: "Entregable 1 - Dataviz"
+author: "Daniela Hernández Navas"
+date: "2026-02-10"
+output: html_document
+---
+
+#ENTREGABLE #1---------------------------------------------------------------------------------------------------
+##Introducción
+En el presente ejercicio se analiza el comportamiento de los incendios forestales en el estado de Idaho, utilizando un conjunto de datos históricos que registra información sobre año, causa y superficie afectada. El objetivo principal es filtrar los datos correspondientes a Idaho, agrupar la información por causa y año, y calcular el total de acres quemados, con el fin de identificar patrones y tendencias en la ocurrencia de incendios.
+
+- Filtrar los registros para incluir únicamente los incendios ocurridos en el estado de Idaho.
+
+```{r}
+df %>% 
+  filter(STATE== 'Idaho') -> incendios_idaho 
+```
+
+- Seleccionar únicamente las columnas YEAR_, CAUSE y TOTALACRES.
+```{r}
+incendios_idaho %>% 
+  select(YEAR_, CAUSE, TOTALACRES) ->incendios_idaho 
+```
+
+- Renombrar estas columnas con nombres más claros y descriptivos.
+```{r}
+incendios_idaho %>% 
+  select("AÑO"="YEAR_", "CAUSA"="CAUSE", "Total_Acres"="TOTALACRES") ->incendios_idaho
+```
+
+- Agrupar la información por CAUSE y YEAR_.
+```{r}
+incendios_idaho %>% 
+  group_by(CAUSA, AÑO) ->incendios_idaho_agrup 
+```
+
+- Resumir el total de acres quemados para cada combinación de causa y año.
+```{r}
+incendios_idaho_agrup %>% 
+  #summarise()
+  summarise(
+    Total_Acres_Quemados = sum(Total_Acres, na.rm = TRUE), #si encuentra un NA no lo agrega a la suma(por eso el remove), en este caso la columna Total_Acres no tiene NA sino 0´s, por lo que se puede omitir.
+    .groups = "drop"  #Evita una advertencia que sale al elimnar la estructura de agrupación
+  ) -> incendios_idaho_resumen
+```
+
+- Elaborar una visualización que muestre los resultados de manera clara.
+
+#Gráfico de líneas múltiples
+```{r}
+library(dplyr)
+library(ggplot2)
+library(scales)
+
+# df_summary: (cause, year, total_acres_burned)
+# Asegúrate que tu resumen se llame así o cambia el nombre abajo.
+
+df_plot <- incendios_idaho_resumen %>%
+  mutate(
+    cause = ifelse(is.na(CAUSA), "Sin dato", CAUSA),
+    cause = factor(CAUSA, levels = c("Natural", "Human", "Undetermined", "Sin dato"))
+  )
+
+pal_morada <- c(
+  "Natural"       = "#3B0A6D",  # morado oscuro
+  "Human"         = "#7A1FA2",  # morado medio
+  "Undetermined"  = "#B57EDC",  # lila
+  "Sin dato"      = "#D8B4F8"   # lila claro
+)
+
+ggplot(df_plot, aes(x = AÑO, y = Total_Acres_Quemados, color = CAUSA)) +
+  geom_line(linewidth = 1.2, alpha = 0.95) +
+  geom_point(size = 2, alpha = 0.95) +
+  scale_color_manual(values = pal_morada) +
+  scale_y_continuous(labels = label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Total de acres quemados por causa de incendios en Idaho",
+    subtitle = "Suma anual de acres quemados (agrupado por causa)",
+    x = "Año",
+    y = "Acres quemados (total anual)",
+    color = "Causa"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.title.position = "plot",
+    plot.margin = margin(t = 20, r = 20, b = 20, l = 20),
+    plot.subtitle = element_text(size = 11),
+    axis.title = element_text(face = "bold"),
+    legend.position = "right",
+    legend.title = element_text(face = "bold"),
+    panel.grid.minor = element_blank(),
+    panel.background = element_rect(fill = "grey92", color = NA),
+    plot.background  = element_rect(fill = "white", color = NA)
+  )
+
+
+```
+
+##Interpretación 
+A lo largo del período analizado, se observa que los incendios de origen natural presentan una mayor variabilidad y magnitud en comparación con los de origen humano. En particular, destacan picos pronunciados en ciertos años, donde la superficie afectada por incendios naturales supera ampliamente al resto de las causas, alcanzando valores superiores a los dos millones de acres quemados. Estos picos sugieren la ocurrencia de eventos extremos, posiblemente asociados a condiciones climáticas adversas como sequías prolongadas o temporadas de incendios especialmente severas.
+
+Por su parte, los incendios causados por actividades humanas muestran un comportamiento más estable, con fluctuaciones moderadas a lo largo del tiempo y valores considerablemente menores en términos de acres quemados. Si bien existen años con incrementos puntuales, la magnitud de estos eventos no alcanza los niveles observados en los incendios de origen natural.
+
+```{r}
+df_plot_filtrado <- df_plot %>%
+  filter(cause %in% c("Human", "Natural"))
+
+ggplot(df_plot_filtrado, aes(x = AÑO, y = CAUSA, fill = Total_Acres_Quemados)) +
+  geom_tile() +
+  scale_fill_gradient(low = "#EAD7FF", high = "#3B0A6D",
+                      labels = label_number(big.mark=".", decimal.mark=",")) +
+  labs(
+    title = "Total de acres quemados por causa de incendios en Idaho",
+    x = "Año",
+    y = "Causa",
+    fill = "Toral Acres"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.title.position = "plot",
+    plot.subtitle = element_text(size = 11),
+    axis.title = element_text(face = "bold"),
+    panel.background = element_rect(fill = "grey95", color = NA),
+    panel.grid = element_blank()
+    
+  )
+
+```
+##Interpretación
+Los tonos más oscuros evidencian que los incendios de origen natural concentran los mayores niveles de acres quemados y presentan una variabilidad más marcada a lo largo del tiempo, con episodios puntuales de alta severidad. En contraste, los incendios de causa humana muestran una intensidad más baja y relativamente constante, sin alcanzar los niveles observados en los eventos naturales.
+
+##Conclusión
+El análisis evidenció que los incendios de origen natural concentran la mayor cantidad de acres quemados en Idaho, especialmente en años caracterizados por picos significativos de afectación. Aunque los incendios de causa humana se presentan de manera recurrente, su impacto en términos de superficie afectada resulta considerablemente menor. Las visualizaciones desarrolladas permitieron identificar tendencias temporales y diferencias claras entre causas, demostrando la utilidad del análisis de datos para comprender la dinámica de los incendios forestales.

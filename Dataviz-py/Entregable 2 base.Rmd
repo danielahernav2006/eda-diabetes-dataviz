@@ -1,0 +1,269 @@
+---
+title: "Entregable 2 - Dataviz"
+author: "Daniela Hernández Navas"
+date: "2026-02-10"
+output: html_document
+---
+
+#ENTREGABLE #2---------------------------------------------------------------------------------------------------
+## 1. Introducción
+
+El presente análisis se desarrolla a partir del conjunto de datos athlete_events, que recopila más de un siglo de historia olímpica. En este ejercicio se examinan específicamente los resultados correspondientes a los Juegos Olímpicos de 2016, con el objetivo de identificar los cinco deportes con mayor número de medallas otorgadas y realizar un análisis descriptivo de los atletas ganadores en dichas disciplinas.
+
+## 2. Datos
+
+```{r}
+library(tidyverse)
+
+df2 <- read_csv("https://raw.githubusercontent.com/cdeoroaguado/Datos/refs/heads/main/dataviz/athlete_events.csv")
+
+df2 %>%
+  filter(Year == 2016, !is.na(Medal)) -> Olimpiadas_2016 
+```
+
+Los datos fueron importados desde un repositorio público en formato CSV, este conjunto de datos cuenta con 271.116 observaciones y 15 variables. Se filtran los registros del año 2016 y se conservan únicamente aquellos atletas que obtuvieron medalla (Gold, Silver o Bronze) dado a la naturaleza del ejercicio.
+
+```{r}
+top5_sports <- olympics_2016 %>%
+  count(Sport, sort = TRUE) %>%
+  slice_head(n = 5)
+
+```
+En este apartado se contabiliza el número de medallas otorgadas por deporte en 2016 y se seleccionan los cinco deportes con mayor frecuencia.
+
+## 3. Resultados
+### 3.1 Deportes con mayor número de medallas en 2016
+
+```{r}
+#install.packages("gt")
+#library(dplyr)
+#library(tidyr)
+#library(gt)
+
+Olimpiadas_2016 %>% 
+  semi_join(Top5_deportes, by = "Sport") %>% 
+  count(Sport, Medal, name = "Medallas_2016") %>%
+  pivot_wider(names_from = Medal, values_from = Medallas_2016, values_fill = 0) %>%
+  mutate(Total = Gold + Silver + Bronze) %>%
+  arrange(desc(Total)) -> Tabla_medallas_top5 
+
+
+Tabla_medallas_top5 %>%
+  gt() %>%
+  tab_header(
+    title = md("**Medallas otorgadas por deporte (Top 5)**"),
+    subtitle = "Juegos olímpicos 2016"
+  ) %>%
+  cols_label(
+    Sport = "Deporte",
+    Gold = "Oro",
+    Silver = "Plata",
+    Bronze = "Bronce",
+    Total = "Total"
+  ) %>%
+  fmt_number(columns = c(Gold, Silver, Bronze, Total), decimals = 0) %>%
+  data_color(
+    columns = Total,
+    palette = c("#F2E9FF", "#3B0A6D")   # lila claro -> morado oscuro
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(columns = Total)
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels(everything())
+  ) %>%
+  tab_options(
+    table.font.names = "Arial",
+    table.font.size = px(12),
+    heading.title.font.size = px(16),
+    heading.subtitle.font.size = px(12),
+    column_labels.background.color = "#F5F5F5",
+    table.border.top.style = "solid",
+    table.border.top.color = "#D9D9D9",
+    table.border.bottom.style = "solid",
+    table.border.bottom.color = "#D9D9D9",
+    row.striping.include_table_body = TRUE,
+    row.striping.background_color = "#FAFAFA"
+  )
+
+```
+La tabla presenta, para cada uno de los cinco deportes principales, el número de medallas desagregado por tipo (oro, plata y bronce) y el total. Este resultado se encuentra asociado a la cantidad de pruebas incluidas en cada disciplina dentro del programa olímpico.
+
+### 3.2 Distribución de la edad de los ganadores de medallas
+
+```{r}
+Olimpiadas_2016 %>%
+  #filter(Sport %in% top5_sports$Sport, !is.na(Age)) %>%
+  semi_join(Top5_deportes, by = "Sport") %>%
+  filter(!is.na(Age)) %>%
+  group_by(Sport) %>%
+  summarise(
+    n = n(),
+    edad_media = mean(Age),
+    edad_mediana = median(Age),
+    edad_min = min(Age),
+    edad_q1 = quantile(Age, 0.25),
+    edad_q3 = quantile(Age, 0.75),
+    edad_max = max(Age),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(n)) -> Tabla_edad_top5
+```
+Se analizó la edad de los atletas ganadores de medallas en 2016 en los cinco deportes seleccionados mediante estadísticas descriptivas (promedio, mediana, mínimo y máximo...). Esto permite comparar deportes donde tienden a ganar atletas más jóvenes vs. más experimentados.
+
+
+```{r}
+Tabla_edad_top5 %>%
+  gt() %>%
+  tab_header(
+    title = md("**Distribución de edades de ganadores (Top 5 deportes)**"),
+    subtitle = "Juegos olímpicos 2016"
+  ) %>%
+  cols_label(
+    Sport = "Deporte",
+    n = "Total Medallas",
+    edad_media = "Media",
+    edad_mediana = "Mediana",
+    edad_min = "Mín",
+    edad_q1 = "Q1",
+    edad_q3 = "Q3",
+    edad_max = "Máx"
+  ) %>%
+  fmt_number(
+    columns = c(n),
+    decimals = 0
+  ) %>%
+  fmt_number(
+    columns = c(edad_media, edad_mediana, edad_min, edad_q1, edad_q3, edad_max),
+    decimals = 1
+  ) %>%
+  data_color(
+    columns = edad_media,
+    palette = c("#F2E9FF", "#3B0A6D")
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels(everything())
+  ) %>%
+  tab_options(
+    table.font.names = "Arial",
+    table.font.size = px(12),
+    heading.title.font.size = px(16),
+    heading.subtitle.font.size = px(12),
+    column_labels.background.color = "#F5F5F5",
+    row.striping.include_table_body = TRUE,
+    row.striping.background_color = "#FAFAFA"
+  )
+
+```
+En general, se observan diferencias entre deportes: algunos concentran ganadores en rangos de edad más jóvenes, mientras que otros presentan perfiles de edad relativamente mayores, lo que sugiere dinámicas competitivas distintas según la disciplina.
+
+
+```{r}
+library(ggplot2)
+library(forcats)
+
+df_age_plot <- Olimpiadas_2016 %>%
+  semi_join(Top5_deportes, by = "Sport") %>%
+  filter(!is.na(Age)) %>%
+  mutate(Sport = fct_reorder(Sport, Age, .fun = median))
+df_age_plot
+
+ggplot(df_age_plot, aes(x = Sport, y = Age)) +
+  geom_boxplot(fill = "#B57EDC", color = "#3B0A6D", width = 0.6, outlier_alpha = 0.4) +
+  coord_flip() +
+  labs(
+    title = "Distribución de edades de ganadores por deporte",
+    x = "Deporte",
+    y = "Edad (años)"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.title.position = "plot",
+    plot.subtitle = element_text(size = 11),
+    axis.title = element_text(face = "bold"),
+    panel.background = element_rect(fill = "grey95", color = NA),
+    panel.grid.minor = element_blank(),
+    plot.margin = margin(25, 20, 20, 20)
+  )
+
+```
+
+Los resultados muestran que existen diferencias en la edad de los atletas según el deporte, observándose edades promedio más bajas en disciplinas como natación y fútbol, y edades promedio más altas en deportes como remo y atletismo.
+
+El diagrama de cajas evidencia diferencias en la distribución de la edad entre deportes. Se observan variaciones tanto en la mediana como en la dispersión (rango intercuartílico), lo que indica que algunos deportes concentran ganadores en rangos de edad más homogéneos, mientras que otros presentan mayor variabilidad. Además, los valores atípicos sugieren la presencia de ganadores con edades notablemente distintas al grupo principal en ciertas disciplinas.
+
+### 3.3 Equipos nacionales con mayor número de medallas
+
+```{r}
+Olimpiadas_2016 %>%
+  filter(Sport %in% Top5_deportes$Sport) %>%
+  #semi_join(Top5_deportes, by = "Sport") %>%
+  count(Sport, Team, name = "medals") %>%
+  group_by(Sport) %>%
+  slice_max(order_by = medals, n = 1, with_ties = TRUE) %>% #slice max selecciona las filas que tienen los valores más altos, usando la columna medals para decidir
+  #n=1 el número de posiciones top que se quieren
+  #with_ties para el tratamiento de empates
+  ungroup() %>% #por seguridad y que no afecte resultados posteriores
+  arrange(desc(medals)) -> Top_Equi_Nacio
+
+Top_Equi_Nacio
+
+```
+
+El resultado presenta los equipos nacionales que obtuvieron el mayor número de medallas en cada uno de los cinco deportes con mayor participación en los Juegos Olímpicos de 2016. Los resultados muestran un claro dominio de ciertos países en disciplinas específicas. En particular, Estados Unidos lidera en deportes como natación y atletismo, concentrando un número significativamente alto de medallas, mientras que Alemania destaca en disciplinas como fútbol y hockey. Por su parte, Gran Bretaña sobresale en remo. Estos resultados evidencian la especialización y fortaleza histórica de determinados países en deportes concretos, así como la distribución desigual del éxito deportivo entre los comités olímpicos nacionales.
+
+### 3.4 Peso de los atletas ganadores según el sexo
+
+```{r}
+Olimpiadas_2016 %>%
+  filter(
+    Sport %in% Top5_deportes$Sport,
+    !is.na(Weight),
+    Sex %in% c("M", "F")
+  ) %>%
+  group_by(Sport, Sex) %>%
+  summarise(
+    Total = n(),
+    peso_medio = mean(Weight),
+    peso_mediano = median(Weight),
+    peso_q1 = quantile(Weight, 0.25),
+    peso_q3 = quantile(Weight, 0.75),
+    .groups = "drop"
+  ) -> resumen_peso
+
+resumen_peso
+```
+
+Finalmente, se exploró la distribución del peso de los atletas ganadores de medallas, diferenciando por sexo y deporte. En todos los deportes analizados, los atletas masculinos presentan un peso promedio superior al de las atletas femeninas, con variaciones en la magnitud de esta diferencia dependiendo de la disciplina.
+
+```{r}
+ggplot(
+  Olimpiadas_2016 %>% semi_join(Top5_deportes, by = "Sport") %>% filter(!is.na(Weight), Sex %in% c("M","F")),
+  aes(x = Sport, y = Weight, fill = Sex)
+) +
+  geom_boxplot() +
+  coord_flip() +
+  labs(
+    title = "Distribución del peso por sexo en ganadores (Top 5 deportes, 2016)",
+    x = "Deporte",
+    y = "Peso (kg)",
+    fill = "Sexo"
+  ) +
+  theme_minimal()
+
+```
+En disciplinas como remo (Rowing) y natación (Swimming) se registran los mayores pesos promedio en hombres, superando los 80 kg en promedio, mientras que en mujeres estos valores oscilan entre los 65 y 72 kg. El remo, en particular, muestra una mayor dispersión en el peso de los hombres, evidenciada tanto en el rango intercuartílico como en la presencia de valores extremos.
+
+En deportes como atletismo (Athletics) y hockey, aunque las diferencias entre sexos se mantienen, la variabilidad del peso es menor en comparación con disciplinas como el remo, lo que sugiere perfiles físicos más homogéneos dentro de estas categorías.
+
+## 4. Conclusiones
+
+El análisis realizado permitió explorar de manera descriptiva los resultados de los Juegos Olímpicos de 2016 en los cinco deportes con mayor número de medallas. A partir de los datos, se identificaron diferencias relevantes en las características de los atletas ganadores, particularmente en términos de edad, país y peso.
+
+La exploración del conjunto de datos proporciona una visión general del comportamiento de estas variables en el contexto olímpico, cumpliendo con los objetivos planteados en el ejercicio y sentando las bases para análisis posteriores de mayor profundidad.
+
+

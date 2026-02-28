@@ -1,0 +1,565 @@
+---
+title: "**EJERCICIOS PRÁCTICOS**"
+author: "Daniela Hernández Navas & Valeria Incer Vergara"
+date: "2026-02-10"
+output: 
+  html_document:
+      code_folding: hide
+      toc : true
+      number_sections: false
+      toc_float : true
+      toc_collapsed : true
+      smoth_scroll : true
+      
+---
+
+ <style>
+ h2{color: darkblue; }
+ h1 {color: darkred; }
+ </style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo    = TRUE,      # muestra código 
+  message = FALSE,     # oculta mensajes
+  warning = FALSE      # oculta warnings
+)
+
+``` 
+
+```{r}
+#Librerías importantes
+library(tidyverse)
+library(dplyr)
+library(tidyr)
+library(gt)
+library(scales)
+library(devtools)
+```
+
+
+
+
+# **ENTREGABLE 1**  
+## **1. Introducción** 
+En el presente ejercicio se analiza el comportamiento de los incendios forestales en el estado de Idaho, utilizando un conjunto de datos históricos que registra información sobre año, causa y superficie afectada. El objetivo principal es filtrar los datos correspondientes a Idaho, agrupar la información por causa y año, y calcular el total de acres quemados, con el fin de identificar patrones y tendencias en la ocurrencia de incendios.  
+
+## **2. Importe de datos**
+```{r n8,message=FALSE,warning=FALSE}
+df <- read_csv("C:/Users/danih/OneDrive/Documentos/R/VISU/RDataSets/StudyArea.csv")
+df
+```
+
+## **3. Desarrollo**  
+
+**3.1** Filtrar los registros para incluir únicamente los incendios ocurridos en el estado de Idaho.  
+
+```{r}
+df %>% 
+  filter(STATE== 'Idaho') -> incendios_idaho 
+incendios_idaho
+```
+
+**3.2** Seleccionar únicamente las columnas YEAR_, CAUSE y TOTALACRES.  
+```{r}
+incendios_idaho %>% 
+  select(YEAR_, CAUSE, TOTALACRES) ->incendios_idaho
+incendios_idaho
+```
+
+**3.3** Renombrar estas columnas con nombres más claros y descriptivos.    
+```{r}
+incendios_idaho %>% 
+  select("AÑO"="YEAR_", "CAUSA"="CAUSE", "Total_Acres"="TOTALACRES") ->incendios_idaho
+
+incendios_idaho
+```
+
+**3.4** Agrupar la información por CAUSE y YEAR_.  
+```{r}
+incendios_idaho %>% 
+  group_by(CAUSA, AÑO) ->incendios_idaho_agrup 
+
+incendios_idaho_agrup
+```
+
+**3.5** Resumir el total de acres quemados para cada combinación de causa y año.  
+```{r}
+incendios_idaho_agrup %>% 
+  #summarise()
+  summarise(
+    Total_Acres_Quemados = sum(Total_Acres, na.rm = TRUE), #si encuentra un NA no lo agrega a la suma(por eso el remove), en este caso la columna Total_Acres no tiene NA sino 0´s, por lo que se puede omitir.
+    .groups = "drop"  #Evita una advertencia que sale al elimnar la estructura de agrupación
+  ) -> incendios_idaho_resumen
+incendios_idaho_resumen
+```
+
+**3.6** Elaborar una visualización que muestre los resultados de manera clara.   
+
+### **Gráfico de líneas múltiples**  
+```{r}
+
+df_plot <- incendios_idaho_resumen %>%
+  mutate(
+    cause = ifelse(is.na(CAUSA), "Sin dato", CAUSA),
+    cause = factor(CAUSA, levels = c("Natural", "Human", "Undetermined", "Sin dato"))
+  )
+
+pal_morada <- c(
+  "Natural"       = "#3B0A6D",  
+  "Human"         = "#7A1FA2",  
+  "Undetermined"  = "#B57EDC",  
+  "Sin dato"      = "#D8B4F8"   
+)
+
+ggplot(df_plot, aes(x = AÑO, y = Total_Acres_Quemados, color = CAUSA)) +
+  geom_line(linewidth = 1.2, alpha = 0.95) +
+  geom_point(size = 2, alpha = 0.95) +
+  scale_color_manual(values = pal_morada) +
+  scale_y_continuous(labels = label_number(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Total de acres quemados por causa de incendios en Idaho",
+    subtitle = "Suma anual de acres quemados (agrupado por causa)",
+    x = "Año",
+    y = "Acres quemados (total anual)",
+    color = "Causa"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.title.position = "plot",
+    plot.margin = margin(t = 20, r = 20, b = 20, l = 20),
+    plot.subtitle = element_text(size = 11),
+    axis.title = element_text(face = "bold"),
+    legend.position = "right",
+    legend.title = element_text(face = "bold"),
+    panel.grid.minor = element_blank(),
+    panel.background = element_rect(fill = "grey92", color = NA),
+    plot.background  = element_rect(fill = "white", color = NA)
+  )
+```
+
+### **Interpretación**   
+A lo largo del período analizado, se observa que los incendios de origen natural presentan una mayor variabilidad y magnitud en comparación con los de origen humano. En particular, destacan picos pronunciados en ciertos años, donde la superficie afectada por incendios naturales supera ampliamente al resto de las causas, alcanzando valores superiores a los dos millones de acres quemados.
+
+Por su parte, los incendios causados por actividades humanas muestran un comportamiento más estable, con fluctuaciones moderadas a lo largo del tiempo y valores considerablemente menores en términos de acres quemados. Si bien existen años con incrementos puntuales, la magnitud de estos eventos no alcanza los niveles observados en los incendios de origen natural.  
+
+### **Gráfico Heap Map**  
+
+```{r}
+df_plot_filtrado <- df_plot %>%
+  filter(cause %in% c("Human", "Natural"))
+
+ggplot(df_plot_filtrado, aes(x = AÑO, y = CAUSA, fill = Total_Acres_Quemados)) +
+  geom_tile() +
+  scale_fill_gradient(low = "#EAD7FF", high = "#3B0A6D",
+                      labels = label_number(big.mark=".", decimal.mark=",")) +
+  labs(
+    title = "Total de acres quemados por causa de incendios en Idaho",
+    x = "Año",
+    y = "Causa",
+    fill = "Toral Acres"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.title.position = "plot",
+    plot.subtitle = element_text(size = 11),
+    axis.title = element_text(face = "bold"),
+    panel.background = element_rect(fill = "grey95", color = NA),
+    panel.grid = element_blank()
+    
+  )
+
+```
+### **Interpretación**  
+
+Los tonos más oscuros evidencian que los incendios de origen natural concentran los mayores niveles de acres quemados y presentan una variabilidad más marcada a lo largo del tiempo, con episodios puntuales de alta severidad. En contraste, los incendios de causa humana muestran una intensidad más baja y relativamente constante, sin alcanzar los niveles observados en los eventos naturales.  
+
+## **4.Conclusión**  
+El análisis evidenció que los incendios de origen natural concentran la mayor cantidad de acres quemados en Idaho, especialmente en años caracterizados por picos significativos de afectación. Aunque los incendios de causa humana se presentan de manera recurrente, su impacto en términos de superficie afectada resulta considerablemente menor. Las visualizaciones desarrolladas permitieron identificar tendencias temporales y diferencias claras entre causas, demostrando la utilidad del análisis de datos para comprender la dinámica de los incendios forestales.  
+
+
+  
+  
+# **ENTREGABLE 2**  
+## **1. Introducción**  
+
+El presente análisis se desarrolla a partir del conjunto de datos athlete_events, que recopila más de un siglo de historia olímpica. En este ejercicio se examinan específicamente los resultados correspondientes a los Juegos Olímpicos de 2016, con el objetivo de identificar los cinco deportes con mayor número de medallas otorgadas y realizar un análisis descriptivo de los atletas ganadores en dichas disciplinas.  
+
+## **2. Importe de datos**  
+
+```{r}
+df2 <- read_csv("https://raw.githubusercontent.com/cdeoroaguado/Datos/refs/heads/main/dataviz/athlete_events.csv")
+df2 %>%
+  filter(Year == 2016, !is.na(Medal)) -> Olimpiadas_2016 
+Olimpiadas_2016
+```
+
+Los datos fueron importados desde un repositorio público en formato CSV, este conjunto de datos cuenta con 271.116 observaciones y 15 variables. Se filtran los registros del año 2016 y se conservan únicamente aquellos atletas que obtuvieron medalla (Gold, Silver o Bronze) dado a la naturaleza del ejercicio.  
+
+```{r}
+Olimpiadas_2016 %>%
+  count(Sport, sort = TRUE) %>%
+  slice_head(n = 5) -> Top5_deportes
+Top5_deportes
+```
+En este apartado se contabiliza el número de medallas otorgadas por deporte en 2016 y se seleccionan los cinco deportes con mayor frecuencia.  
+
+## **3. Desarrollo**  
+**3.1** Deportes con mayor número de medallas en 2016.  
+
+```{r}
+
+Olimpiadas_2016 %>% 
+  semi_join(Top5_deportes, by = "Sport") %>% 
+  count(Sport, Medal, name = "Medallas_2016") %>%
+  pivot_wider(names_from = Medal, values_from = Medallas_2016, values_fill = 0) %>%
+  mutate(Total = Gold + Silver + Bronze) %>%
+  arrange(desc(Total)) -> Tabla_medallas_top5 
+
+
+Tabla_medallas_top5 %>%
+  gt() %>%
+  tab_header(
+    title = md("**Medallas otorgadas por deporte (Top 5)**"),
+    subtitle = "Juegos olímpicos 2016"
+  ) %>%
+  cols_label(
+    Sport = "Deporte",
+    Gold = "Oro",
+    Silver = "Plata",
+    Bronze = "Bronce",
+    Total = "Total"
+  ) %>%
+  fmt_number(columns = c(Gold, Silver, Bronze, Total), decimals = 0) %>%
+  data_color(
+    columns = Total,
+    palette = c("#F2E9FF", "#3B0A6D")   
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(columns = Total)
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels(everything())
+  ) %>%
+  tab_options(
+    table.font.names = "Arial",
+    table.font.size = px(12),
+    heading.title.font.size = px(16),
+    heading.subtitle.font.size = px(12),
+    column_labels.background.color = "#F5F5F5",
+    table.border.top.style = "solid",
+    table.border.top.color = "#D9D9D9",
+    table.border.bottom.style = "solid",
+    table.border.bottom.color = "#D9D9D9",
+    row.striping.include_table_body = TRUE,
+    row.striping.background_color = "#FAFAFA"
+  )
+
+```
+La tabla presenta, para cada uno de los cinco deportes principales, el número de medallas desagregado por tipo (oro, plata y bronce) y el total. Este resultado se encuentra asociado a la cantidad de pruebas incluidas en cada disciplina dentro del programa olímpico.  
+
+**3.2** Distribución de la edad de los ganadores de medallas.  
+
+```{r}
+Olimpiadas_2016 %>%
+  #filter(Sport %in% top5_sports$Sport, !is.na(Age)) %>%
+  semi_join(Top5_deportes, by = "Sport") %>%
+  filter(!is.na(Age)) %>%
+  group_by(Sport) %>%
+  summarise(
+    n = n(),
+    edad_media = mean(Age),
+    edad_mediana = median(Age),
+    edad_min = min(Age),
+    edad_q1 = quantile(Age, 0.25),
+    edad_q3 = quantile(Age, 0.75),
+    edad_max = max(Age),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(n)) -> Tabla_edad_top5
+```
+Se analizó la edad de los atletas ganadores de medallas en 2016 en los cinco deportes seleccionados mediante estadísticas descriptivas (promedio, mediana, mínimo, máximo...). Esto permite comparar deportes donde tienden a ganar atletas más jóvenes vs. más experimentados.  
+
+
+```{r}
+Tabla_edad_top5 %>%
+  gt() %>%
+  tab_header(
+    title = md("**Distribución de edades de ganadores (Top 5 deportes)**"),
+    subtitle = "Juegos olímpicos 2016"
+  ) %>%
+  cols_label(
+    Sport = "Deporte",
+    n = "Total Medallas",
+    edad_media = "Media",
+    edad_mediana = "Mediana",
+    edad_min = "Mín",
+    edad_q1 = "Q1",
+    edad_q3 = "Q3",
+    edad_max = "Máx"
+  ) %>%
+  fmt_number(
+    columns = c(n),
+    decimals = 0
+  ) %>%
+  fmt_number(
+    columns = c(edad_media, edad_mediana, edad_min, edad_q1, edad_q3, edad_max),
+    decimals = 1
+  ) %>%
+  data_color(
+    columns = edad_media,
+    palette = c("#F2E9FF", "#3B0A6D")
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels(everything())
+  ) %>%
+  tab_options(
+    table.font.names = "Arial",
+    table.font.size = px(12),
+    heading.title.font.size = px(16),
+    heading.subtitle.font.size = px(12),
+    column_labels.background.color = "#F5F5F5",
+    row.striping.include_table_body = TRUE,
+    row.striping.background_color = "#FAFAFA"
+  )
+
+```
+En general, se observan diferencias entre deportes: algunos concentran ganadores en rangos de edad más jóvenes, mientras que otros presentan perfiles de edad relativamente mayores, lo que sugiere dinámicas competitivas distintas según la disciplina.   
+
+Los resultados muestran que existen diferencias en la edad de los atletas según el deporte, observándose edades promedio más bajas en disciplinas como natación y fútbol, y edades promedio más altas en deportes como remo y atletismo. 
+
+### **Gráfico de cajas y bigotes**  
+
+```{r}
+library(ggplot2)
+library(forcats)
+
+df_age_plot <- Olimpiadas_2016 %>%
+  semi_join(Top5_deportes, by = "Sport") %>%
+  filter(!is.na(Age)) %>%
+  mutate(Sport = fct_reorder(Sport, Age, .fun = median))
+df_age_plot
+
+ggplot(df_age_plot, aes(x = Sport, y = Age)) +
+  geom_boxplot(fill = "#B57EDC", color = "#3B0A6D", width = 0.6, outlier_alpha = 0.4) +
+  coord_flip() +
+  labs(
+    title = "Distribución de edades de ganadores por deporte",
+    x = "Deporte",
+    y = "Edad (años)"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.title.position = "plot",
+    plot.subtitle = element_text(size = 11),
+    axis.title = element_text(face = "bold"),
+    panel.background = element_rect(fill = "grey95", color = NA),
+    panel.grid.minor = element_blank(),
+    plot.margin = margin(25, 20, 20, 20)
+  )
+
+```
+
+El diagrama de cajas evidencia diferencias en la distribución de la edad entre deportes. Se observan variaciones tanto en la mediana como en la dispersión (rango intercuartílico), lo que indica que algunos deportes concentran ganadores en rangos de edad más homogéneos, mientras que otros presentan mayor variabilidad. Además, los valores atípicos sugieren la presencia de ganadores con edades notablemente distintas al grupo principal en ciertas disciplinas. 
+ 
+ 
+```{r}
+library(dplyr)
+library(ggplot2)
+library(scales)
+
+pareto_edad <- Olimpiadas_2016 %>%
+  semi_join(Top5_deportes, by = "Sport") %>%
+  filter(!is.na(Age)) %>%
+  mutate(
+    rango_edad = cut(
+      Age,
+      breaks = seq(15, 45, by = 5),
+      right = FALSE
+    )
+  ) %>%
+  count(rango_edad) %>%
+  arrange(desc(n)) %>%
+  mutate(
+    prop = n / sum(n),
+    prop_acum = cumsum(prop),
+    rango_edad = factor(rango_edad, levels = rango_edad)
+  )
+
+```
+
+### **Gráfico de pareto**  
+
+```{r}
+ggplot(pareto_edad, aes(x = rango_edad)) +
+  geom_col(aes(y = n), fill = "#3B0A6D", alpha = 0.9) +
+  geom_line(aes(y = prop_acum * max(n), group = 1),
+            color = "#B57EDC", linewidth = 1.2) +
+  geom_point(aes(y = prop_acum * max(n)),
+             color = "#B57EDC", size = 2.5) +
+  scale_y_continuous(
+    name = "Número de ganadores",
+    sec.axis = sec_axis(~ . / max(pareto_edad$n),
+                        labels = percent_format(accuracy = 1),
+                        name = "% acumulado")
+  ) +
+  labs(
+    title = "Distribución de edad de ganadores (Top 5, 2016)",
+    subtitle = "Barras: frecuencia por rango | Línea: porcentaje acumulado",
+    x = "Rango de edad"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    axis.title = element_text(face = "bold"),
+    panel.background = element_rect(fill = "grey95", color = NA),
+    panel.grid.minor = element_blank()
+  )
+
+```
+
+ 
+El gráfico de Pareto evidencia que la mayor concentración de ganadores se encuentra en rangos de edad intermedios, especialmente entre los 20 y 29 años. La línea acumulada muestra que estos primeros rangos concentran más del 70% de los atletas premiados, lo que indica que el rendimiento olímpico en los principales deportes de 2016 se encuentra predominantemente en edades de madurez física óptima. Los rangos superiores presentan una menor frecuencia, lo que sugiere que la probabilidad de obtención de medalla disminuye a edades más avanzadas.  
+
+**3.3** Equipos nacionales con mayor número de medallas. 
+
+```{r}
+Olimpiadas_2016 %>%
+  filter(Sport %in% Top5_deportes$Sport) %>%
+  #semi_join(Top5_deportes, by = "Sport") %>%
+  count(Sport, Team, name = "medals") %>%
+  group_by(Sport) %>%
+  slice_max(order_by = medals, n = 1, with_ties = TRUE) %>% #slice max selecciona las filas que tienen los valores más altos, usando la columna medals para decidir
+  #n=1 el número de posiciones top que se quieren
+  #with_ties para el tratamiento de empates
+  ungroup() %>% #por seguridad y que no afecte resultados posteriores
+  arrange(desc(medals)) -> Top_Equi_Nacio
+
+Top_Equi_Nacio
+
+```
+
+El resultado presenta los equipos nacionales que obtuvieron el mayor número de medallas en cada uno de los cinco deportes con mayor participación en los Juegos Olímpicos de 2016. Los resultados muestran un claro dominio de ciertos países en disciplinas específicas. En particular, Estados Unidos lidera en deportes como natación y atletismo, concentrando un número significativamente alto de medallas, mientras que Alemania destaca en disciplinas como fútbol y hockey. Por su parte, Gran Bretaña sobresale en remo. Estos resultados evidencian la especialización y fortaleza histórica de determinados países en deportes concretos, así como la distribución desigual del éxito deportivo entre los comités olímpicos nacionales.  
+
+**3.4** Peso de los atletas ganadores según el sexo.
+
+```{r}
+Olimpiadas_2016 %>%
+  filter(
+    Sport %in% Top5_deportes$Sport,
+    !is.na(Weight),
+    Sex %in% c("M", "F")
+  ) %>%
+  group_by(Sport, Sex) %>%
+  summarise(
+    Total = n(),
+    peso_medio = mean(Weight),
+    peso_mediano = median(Weight),
+    peso_q1 = quantile(Weight, 0.25),
+    peso_q3 = quantile(Weight, 0.75),
+    .groups = "drop"
+  ) -> resumen_peso
+
+resumen_peso
+```
+
+Finalmente, se exploró la distribución del peso de los atletas ganadores de medallas, diferenciando por sexo y deporte. En todos los deportes analizados, los atletas masculinos presentan un peso promedio superior al de las atletas femeninas, con variaciones en la magnitud de esta diferencia dependiendo de la disciplina.  
+
+
+```{r}
+ggplot(
+  Olimpiadas_2016 %>% 
+    semi_join(Top5_deportes, by = "Sport") %>% 
+    filter(!is.na(Weight), Sex %in% c("M","F")),
+  aes(x = Sport, y = Weight, fill = Sex)
+) +
+  geom_boxplot(color = "#3B0A6D", alpha = 0.9, width = 0.65) +
+  coord_flip() +
+  scale_fill_manual(
+    values = c(
+      "F" = "#B57EDC",   
+      "M" = "#3B0A6D"   
+    ),
+    labels = c("F" = "Femenino", "M" = "Masculino")
+  ) +
+  labs(
+    title = "Distribución del peso por sexo en ganadores (Top 5 deportes, 2016)",
+    x = "Deporte",
+    y = "Peso (kg)",
+    fill = "Sexo"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.title.position = "plot",
+    axis.title = element_text(face = "bold"),
+    panel.background = element_rect(fill = "grey95", color = NA),
+    panel.grid.minor = element_blank(),
+    legend.title = element_text(face = "bold")
+  )
+
+```
+
+En disciplinas como remo (Rowing) y natación (Swimming) se registran los mayores pesos promedio en hombres, superando los 80 kg en promedio, mientras que en mujeres estos valores oscilan entre los 65 y 72 kg. El remo, en particular, muestra una mayor dispersión en el peso de los hombres, evidenciada tanto en el rango intercuartílico como en la presencia de valores extremos.  
+
+En deportes como atletismo (Athletics) y hockey, aunque las diferencias entre sexos se mantienen, la variabilidad del peso es menor en comparación con disciplinas como el remo, lo que sugiere perfiles físicos más homogéneos dentro de estas categorías.  
+
+
+## **4. Conclusiones**  
+
+El análisis realizado permitió explorar de manera descriptiva los resultados de los Juegos Olímpicos de 2016 en los cinco deportes con mayor número de medallas. A partir de los datos, se identificaron diferencias relevantes en las características de los atletas ganadores, particularmente en términos de edad, país y peso.  
+
+La exploración del conjunto de datos proporciona una visión general del comportamiento de estas variables en el contexto olímpico, cumpliendo con los objetivos planteados en el ejercicio y sentando las bases para análisis posteriores de mayor profundidad.  
+
+# **ENTREGABLE 3**  
+## **1. Introducción**
+En el presente entregable se trabaja con el conjunto de datos us_state_population.tsv, el cual contiene información sobre la población de los estados de Estados Unidos a lo largo de distintos años. El objetivo principal es aplicar los principios de datos ordenados (tidy data), transformando la estructura del dataset mediante procesos de recopilación, unión y separación de variables utilizando funciones del paquete tidyverse.  
+
+## **2. Importe de datos**  
+```{r}
+df3 <- read_tsv("C:/Users/danih/Documents/Dataviz_py/us_state_population.tsv", show_col_types = FALSE)
+df3
+```
+
+
+## **3. Desarrollo**  
+## **3.1 Recopilación**  
+
+```{r}
+years <- colnames(df3)[grep("^\\d{4}$", colnames(df3))]  
+
+df3 %>%
+  gather(key = "Year", value = "Population", all_of(years)) -> df3_recop
+
+knitr::kable(head(df3_recop, 5))
+```
+En esta etapa se aplica la función gather() para transformar el dataset de formato ancho (wide), donde los años están distribuidos en columnas, a formato largo (long), creando las nuevas variables Year y Population. De esta manera, cada fila representa la población de un estado en un año específico.  
+
+## **3.2 Unión**  
+```{r}
+df3_recop %>%
+  unite(State_Code, State, Code, sep = "_", remove = TRUE) -> df3_unido 
+
+knitr::kable(head(df3_unido, 5))
+```
+En esta sección se utiliza la función unite() para combinar las columnas State y Code en una nueva variable llamada State_Code, unificando ambas variables en una sola columna separada por un guion bajo. Esto ejemplifica cómo consolidar información cuando dos variables se desean representar en un único campo.  
+
+## **3.3 Separación**  
+```{r}
+df3_unido %>%
+  separate(State_Code, into = c("State", "Code"), sep = "_") -> df3_sep 
+knitr::kable(head(df3_sep, 5))
+```
+Finalmente, se aplica la función separate() para dividir nuevamente la columna State_Code en las variables originales State y Code. Este procedimiento demuestra la operación inversa a unite(), permitiendo reorganizar correctamente la información en columnas independientes.  
+
+## **4. Conclusión**  
+Se logró transformar el dataset desde un formato ancho a uno largo, así como combinar y dividir variables de manera estructurada. Estos procedimientos permiten obtener un conjunto de datos ordenado, facilitando su análisis y garantizando coherencia en la estructura de la información.  
+
+
+
